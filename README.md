@@ -1,49 +1,49 @@
-# Tor + rotation automatique sur Arch Linux et Kali Linux
+# Tor + Automatic Circuit Rotation on Arch Linux and Kali Linux
 
-Ce guide installe et configure Tor sur **Arch Linux** ou **Kali Linux**, puis crée un script unique `tor-rotate` qui :
+This guide explains how to install and configure Tor on **Arch Linux** or Kali Linux, then set up a single `tor-rotate` script that:
 
-- lance une commande via Tor avec `torsocks` ;
-- demande un nouveau circuit Tor au démarrage ;
-- demande une nouvelle rotation toutes les 10 secondes pendant l’exécution ;
-- retourne le code de sortie de la commande lancée.
+- runs a command through Tor using `torsocks`;
+- requests a new Tor circuit at startup;
+- requests another circuit rotation every 10 seconds while the command is running;
+- returns the exit code of the executed command.
 
-## Installation sur Arch Linux
+## Installation on Arch Linux
 
 ```bash
 sudo pacman -Syu
 sudo pacman -S tor torsocks openbsd-netcat
 ```
 
-Active et démarre le service :
+Enable and start the service:
 
 ```bash
 sudo systemctl enable --now tor
 sudo systemctl status tor
 ```
 
-## Installation sur Kali Linux
+## Installation on Kali Linux
 
 ```bash
 sudo apt update
 sudo apt install tor torsocks netcat-openbsd
 ```
 
-Active et démarre le service :
+Enable and start the service:
 
 ```bash
 sudo systemctl enable --now tor
 sudo systemctl status tor
 ```
 
-## Configuration de `/etc/tor/torrc`
+## Configuring `/etc/tor/torrc`
 
-La configuration est identique sur Arch Linux et Kali Linux.
+The configuration is the same on Arch Linux and Kali Linux.
 
 ```bash
 sudo nano /etc/tor/torrc
 ```
 
-Ajoute ou vérifie ces lignes :
+Add or check the following settings:
 
 ```conf
 SocksPort 127.0.0.1:9050
@@ -56,64 +56,64 @@ DataDirectoryGroupReadable 1
 CookieAuthFileGroupReadable 1
 ```
 
-Redémarre Tor :
+Restart Tor:
 
 ```bash
 sudo systemctl restart tor
 sudo systemctl status tor
 ```
 
-Tu dois voir dans les logs :
+You should see the following messages in the logs:
 
 ```text
 Opening Socks listener on 127.0.0.1:9050
 Opening Control listener on 127.0.0.1:9051
 ```
 
-## Accès au cookie Tor
+## Accessing the Tor Authentication Cookie
 
 ### Arch Linux
 
-Ajoute ton utilisateur au groupe `tor` :
+Add your user to the `tor` group:
 
 ```bash
-sudo usermod -aG tor $USER
+sudo usermod -aG tor "$USER"
 ```
 
 ### Kali Linux
 
-Ajoute ton utilisateur au groupe `debian-tor` :
+Add your user to the `debian-tor` group:
 
 ```bash
-sudo usermod -aG debian-tor $USER
+sudo usermod -aG debian-tor "$USER"
 ```
 
-Dans les deux cas, reboot le pc et vérifie :
+On either distribution, reboot your computer, then check your groups:
 
 ```bash
 id
 ```
 
-Tu dois voir le groupe Tor correspondant :
+You should see the corresponding Tor group:
 
 ```text
-Arch Linux : groups=...,tor
-Kali Linux : groups=...,debian-tor
+Arch Linux: groups=...,tor
+Kali Linux: groups=...,debian-tor
 ```
 
-Le cookie se trouve ici :
+The cookie is located here:
 
-```bash
+```text
 /var/lib/tor/control_auth_cookie
 ```
 
-Vérifie l’accès :
+Check that you can read it:
 
 ```bash
-cat /var/lib/tor/control_auth_cookie >/dev/null && echo "Accès OK"
+cat /var/lib/tor/control_auth_cookie >/dev/null && echo "Access OK"
 ```
 
-Si l’accès est refusé :
+If access is denied, apply the following commands for your distribution.
 
 ### Arch Linux
 
@@ -133,18 +133,18 @@ sudo chgrp debian-tor /var/lib/tor/control_auth_cookie
 sudo chmod 640 /var/lib/tor/control_auth_cookie
 ```
 
-## Créer le script `tor-rotate` 
+## Setting Up the `tor-rotate` Script
 
-Le script est identique sur Arch Linux et Kali Linux.
+The script is the same on Arch Linux and Kali Linux.
 
-**Ou simplement copie le du dossier vers ton ~/.local/bin/**
+You can copy the existing script from this repository into `~/.local/bin/`, or create it manually as shown below.
 
 ```bash
 mkdir -p ~/.local/bin
 nano ~/.local/bin/tor-rotate
 ```
 
-Colle ce contenu :
+Paste the following content:
 
 ```bash
 #!/usr/bin/env bash
@@ -156,7 +156,7 @@ PORT=9051
 DELAY="${TOR_ROTATE_DELAY:-10}"
 
 if [[ $# -eq 0 ]]; then
-  echo "Usage : tor-rotate COMMANDE [arguments...]" >&2
+  echo "Usage: tor-rotate COMMAND [arguments...]" >&2
   exit 1
 fi
 
@@ -165,7 +165,7 @@ if (( DELAY < 10 )); then
 fi
 
 if [[ ! -r "$COOKIE" ]]; then
-  echo "Erreur : cookie Tor non lisible : $COOKIE" >&2
+  echo "Error: Tor authentication cookie is not readable: $COOKIE" >&2
   exit 1
 fi
 
@@ -177,9 +177,9 @@ rotate() {
     | timeout 5 nc "$HOST" "$PORT")
 
   if grep -q '^250 OK' <<<"$response"; then
-    echo "[tor-rotate] $(date '+%H:%M:%S') — Nouveau circuit demandé."
+    echo "[tor-rotate] $(date '+%H:%M:%S') — New circuit requested."
   else
-    echo "[tor-rotate] Erreur Tor :" >&2
+    echo "[tor-rotate] Tor error:" >&2
     echo "$response" >&2
     return 1
   fi
@@ -187,7 +187,7 @@ rotate() {
 
 rotate
 
-echo "[tor-rotate] Lancement via Tor : $*"
+echo "[tor-rotate] Running through Tor: $*"
 
 torsocks "$@" &
 CMD_PID=$!
@@ -205,90 +205,96 @@ set -e
 exit "$STATUS"
 ```
 
-Rends-le exécutable :
+Make the script executable:
 
 ```bash
 chmod +x ~/.local/bin/tor-rotate
 ```
 
-Vérifie que `~/.local/bin` est dans ton `PATH` :
+Make sure `~/.local/bin` is included in your `PATH`.
+
+For Zsh:
 
 ```bash
-echo $PATH | grep -q "$HOME/.local/bin" || echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+echo "$PATH" | grep -q "$HOME/.local/bin" || echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
 source ~/.zshrc
 ```
 
-Sur Kali avec Bash, utilise plutôt :
+If you use Bash instead:
 
 ```bash
-echo $PATH | grep -q "$HOME/.local/bin" || echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+echo "$PATH" | grep -q "$HOME/.local/bin" || echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 source ~/.bashrc
 ```
 
-## Utilisation
+## Usage
 
 ```bash
-tor-rotate COMMANDE [arguments...]
+tor-rotate COMMAND [arguments...]
 ```
 
-La commande est automatiquement lancée avec `torsocks`, donc son trafic passe par Tor.
+The command is automatically launched through `torsocks`, which redirects supported network connections through Tor.
 
-## Exemple 1 : tester que Tor fonctionne
+## Example 1: Check That Tor Is Working
 
 ```bash
 tor-rotate curl [https://check.torproject.org/api/ip](https://check.torproject.org/api/ip)
 ```
 
-Résultat attendu :
+Expected output:
 
 ```json
 {"IsTor":true,"IP":"x.x.x.x"}
 ```
 
-## Exemple 2 : tester la rotation automatique
+## Example 2: Test Automatic Circuit Rotation
 
-Cette commande effectue 6 requêtes espacées de 5 secondes, soit environ 30 secondes :
+This command sends six requests with a five-second pause between them. The total runtime also includes the time spent waiting for each response.
 
 ```bash
 tor-rotate bash -c 'for i in {1..6}; do curl -s [https://check.torproject.org/api/ip](https://check.torproject.org/api/ip); echo; sleep 5; done'
 ```
 
-Tu verras plusieurs messages :
+You should see several messages similar to:
 
 ```text
-[tor-rotate] 19:30:07 — Nouveau circuit demandé.
-[tor-rotate] 19:30:17 — Nouveau circuit demandé.
-[tor-rotate] 19:30:27 — Nouveau circuit demandé.
+[tor-rotate] 19:30:07 — New circuit requested.
+[tor-rotate] 19:30:17 — New circuit requested.
+[tor-rotate] 19:30:27 — New circuit requested.
 ```
 
-Les IP peuvent changer, mais ce n’est pas garanti à chaque rotation : `NEWNYM` demande de nouveaux circuits, il ne garantit pas un nouveau relais de sortie.
+The IP address may change, but a different address is not guaranteed after every rotation. `NEWNYM` requests new circuits; it does not guarantee a different exit relay.
 
-## Exemple 3 : utiliser ffuf via Tor
+## Example 3: Run ffuf Through Tor
 
 ```bash
-tor-rotate ffuf -u http://cible/FUZZ \
+tor-rotate ffuf -u http://target/FUZZ \
   -w /usr/share/seclists/Discovery/Web-Content/common.txt
 ```
 
-Tor ralentit fortement le fuzzing. Pour limiter la charge, réduis le nombre de threads :
+Tor can significantly slow down fuzzing. Reduce the number of threads to limit load:
 
 ```bash
-tor-rotate ffuf -u http://cible/FUZZ \
+tor-rotate ffuf -u http://target/FUZZ \
   -w /usr/share/seclists/Discovery/Web-Content/common.txt \
   -t 10
 ```
 
-## Changer l’intervalle de rotation
+Use this only against systems you own or have explicit permission to test.
 
-Par défaut, la rotation est demandée toutes les 10 secondes :
+## Changing the Rotation Interval
+
+By default, the script requests a rotation every 10 seconds.
+
+To use a 15-second interval:
 
 ```bash
 TOR_ROTATE_DELAY=15 tor-rotate curl [https://check.torproject.org/api/ip](https://check.torproject.org/api/ip)
 ```
 
-Ne descends pas sous 10 secondes : Tor limite les demandes `NEWNYM` trop rapprochées.
+The script enforces a minimum interval of 10 seconds because Tor rate-limits closely spaced `NEWNYM` requests.
 
-## Dépannage
+## Troubleshooting
 
 ### `nc: command not found`
 
@@ -300,9 +306,9 @@ sudo pacman -S openbsd-netcat
 sudo apt install netcat-openbsd
 ```
 
-### `cookie Tor non lisible`
+### Tor Authentication Cookie Is Not Readable
 
-Vérifie :
+Check:
 
 ```bash
 id
@@ -310,12 +316,14 @@ ls -ld /var/lib/tor
 ls -l /var/lib/tor/control_auth_cookie
 ```
 
-Ton utilisateur doit être dans le groupe Tor correspondant :
+Your user must belong to the corresponding Tor group:
 
-- `tor` sur Arch Linux ;
-- `debian-tor` sur Kali Linux.
+- `tor` on Arch Linux;
+- `debian-tor` on Kali Linux.
 
-### Tor ne démarre plus
+The directory and cookie must also allow access for that group.
+
+### Tor Fails to Start
 
 ```bash
 sudo systemctl reset-failed tor
@@ -323,27 +331,27 @@ sudo tor -f /etc/tor/torrc --verify-config
 sudo journalctl -u tor -n 50 --no-pager
 ```
 
-### Vérifier que Tor écoute
+### Check That Tor Is Listening
 
 ```bash
 ss -tlnp | grep -E '9050|9051'
 ```
 
-## Récapitulatif Arch / Kali
+## Arch / Kali Summary
 
-| Élément | Arch Linux | Kali Linux |
+| Item | Arch Linux | Kali Linux |
 |---|---|---|
 | Installation | `sudo pacman -S tor torsocks openbsd-netcat` | `sudo apt install tor torsocks netcat-openbsd` |
-| Groupe Tor | `tor` | `debian-tor` |
+| Tor group | `tor` | `debian-tor` |
 | Service | `sudo systemctl enable --now tor` | `sudo systemctl enable --now tor` |
-| Proxy SOCKS5 | `127.0.0.1:9050` | `127.0.0.1:9050` |
-| ControlPort | `127.0.0.1:9051` | `127.0.0.1:9051` |
+| SOCKS5 proxy | `127.0.0.1:9050` | `127.0.0.1:9050` |
+| Configured ControlPort | `127.0.0.1:9051` | `127.0.0.1:9051` |
 | Cookie | `/var/lib/tor/control_auth_cookie` | `/var/lib/tor/control_auth_cookie` |
-| Script | Identique | Identique |
+| Script | Same | Same |
 
-## Sécurité
+## Security
 
-- N’expose jamais `SocksPort` ou `ControlPort` sur `0.0.0.0`.
-- Ne mets pas `chmod 777` sur `/var/lib/tor` ou sur le cookie.
-- `NEWNYM` est global à Tor : il concerne les nouvelles connexions de toutes les applications utilisant ce Tor, pas uniquement la commande lancée par `tor-rotate`.
-- N’utilise pas ce script pour scanner, fuzzé ou automatiser des requêtes contre un système sans autorisation explicite.
+- Never expose `SocksPort` or `ControlPort` on `0.0.0.0`.
+- Never run `chmod 777` on `/var/lib/tor` or the authentication cookie.
+- `NEWNYM` applies to the Tor instance as a whole. It affects new connections from all applications using that instance, not just the command launched by `tor-rotate`.
+- Do not use this script to scan, fuzz, or automate requests against a system without explicit authorization.
