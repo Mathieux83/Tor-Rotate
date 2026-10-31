@@ -1,3 +1,4 @@
+# [French README 🇫🇷](https://github.com/Mathieux83/Tor-Rotate/blob/main/README_FR.md)
 # Tor + Automatic Circuit Rotation on Arch Linux and Kali Linux
 
 This guide explains how to install and configure Tor on **Arch Linux** or Kali Linux, then set up a single `tor-rotate` script that:
