@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+COOKIE=/var/lib/tor/control_auth_cookie
+HOST=127.0.0.1
+PORT=9051
+DELAY="${TOR_ROTATE_DELAY:-10}"
+
+if [[ $# -eq 0 ]]; then
+  echo "Usage : tor-run COMMANDE [arguments...]" >&2
+  exit 1
+fi
+
+if (( DELAY < 10 )); then
+  DELAY=10
+fi
+
+if [[ ! -r "$COOKIE" ]]; then
+  echo "Erreur : cookie Tor non lisible : $COOKIE" >&2
+  exit 1
+fi
+
+rotate() {
+  local cookie_hex response
+  cookie_hex=$(xxd -p "$COOKIE" | tr -d '\n')
+
+  response=$(printf 'AUTHENTICATE %s\r\nSIGNAL NEWNYM\r\nQUIT\r\n' "$cookie_hex" \
+    | timeout 5 nc "$HOST" "$PORT")
+
+  if grep -q '^250 OK' <<<"$response"; then
+    echo "[tor-run] $(date '+%H:%M:%S') — Nouveau circuit demandé."
+  else
+    echo "[tor-run] Erreur Tor :" >&2
+    echo "$response" >&2
+    return 1
+  fi
+}
+
+rotate
+
+echo "[tor-run] Lancement via Tor : $*"
+
+torsocks "$@" &
+CMD_PID=$!
+
+while kill -0 "$CMD_PID" 2>/dev/null; do
+  sleep "$DELAY"
+  rotate
+done
+
+set +e
+wait "$CMD_PID"
+STATUS=$?
+set -e
+exit "$STATUS"
